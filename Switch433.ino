@@ -19,39 +19,30 @@ int LED_WHITE = 4;
 int LED_RED = 5;
 int LED_GREEN = 6;
 
-#define SWITCH_ON 1            //V_LIGHT values 1 / 0 for ON / OFF
-#define SWITCH_OFF 0
+int BITLENGTH = 24;
+
+
+RCSwitch rcSwitch = RCSwitch();
+MySensor gw; 
 
 #define SWITCH_1 0            //Child ID of the first switch
 #define NUMBER_OF_SWITCHES 2  //Total number of switches
 
-
-#define ON 1
-#define OFF 0
-
-int BITLENGTH = 24;
-
-
-
-
-RCSwitch rcSwitch = RCSwitch();
-
 //Declare all your known switches in this array
 //Change you number of switches above -> #define NUMBER_OF_SWITCHES
-static SWITCH mySwitches[NUMBER_OF_SWITCHES] = {
-  //{name, on_code, off_code, bitlength}
-  {"Front Patio", 5363020, 5363008, 24}, {"Living Room Roto 2", 5592407, 5592404, 24}
+MySwitch mySwitches[NUMBER_OF_SWITCHES] = {
+  //MySwitch("Name", On Code , Off Code, bit length (default 24), &rcSwitch)
+  //e.g. MySwitch("Front Patio", 5363020, 5363008, 24, &rcSwitch) 
+  MySwitch("Front Patio", 5363020, 5363008, 24, &rcSwitch), 
+  MySwitch("Living Room Roto 2", 5592407, 5592404, 24, &rcSwitch)
 
 };
 
-MySwitch switches [NUMBER_OF_SWITCHES];
-
-MySensor gw; 
-MyMessage msg(CHILD_ID, V_LIGHT);
 
 
 void setup()  {  
   Serial.begin(115200);
+  //Setup LEDs
   pinMode(LED_WHITE, OUTPUT);
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
@@ -81,13 +72,8 @@ void setup()  {
   Serial.println("----TESTING MySwitch class ------ ");
   //Testing MySwitch.h and .cpp
   for (int i = 0; i < NUMBER_OF_SWITCHES; i++) {
-    // MySwitch t("Front Patio", 5363020, 5363008, 24, &rcSwitch);
-    switches[i] = MySwitch(&mySwitches[i].name, &mySwitches[i].on_code, &mySwitches[i].off_code, &mySwitches[i].bitlength, &rcSwitch);
-   
-    MySwitch t(&mySwitches[i].name, &mySwitches[i].on_code, &mySwitches[i].off_code, &mySwitches[i].bitlength, &rcSwitch);
-    t.printSwitch();
-    t.transmit24bit();
-    //t.transmit24bit(&rcSwitch);
+    mySwitches[i].printSwitch();
+
   }
 
 
@@ -124,6 +110,8 @@ void loop() {
   }
   
   gw.process();
+
+  //sleep(uint8_t interrupt1, uint8_t mode1, uint8_t interrupt2, uint8_t mode2, unsigned long ms=0);
   
 } 
 
@@ -131,83 +119,26 @@ void loop() {
 
 
 void presentSwitches() {
-  //Present the potential array of switches to the Controller
-  Serial.println("Begin Presentation");
-  
+  //Present the array of switches to the Controller
+  Serial.println("----- Begin Presentation -----");
   
   //Iterate through each known SWITCH, Present to Controller
   for (int i = 0; i < NUMBER_OF_SWITCHES; i++) {
     Serial.println("Presenting: ");
-    Serial.println(mySwitches[i].name);
+    Serial.println(mySwitches[i].getName());
     
     gw.present(i, S_LIGHT);
   }
 
-}
-
-
-
-void procIncSignalTest() {
-  //Time since the first Signal was rcv;
-  unsigned long timeSignalRecv = millis();
-  unsigned long delayAdd = 2000;   //2000ms = 2s delay
-  unsigned long delayedTime = timeSignalRecv + delayAdd;
-
-  unsigned long valueArray[25];
-  int i = 0;
-  
-  Serial.println("Inital Time Recv / Delayed Time");
-  Serial.println(timeSignalRecv);
-  Serial.println(delayedTime);
-
-  digitalWrite(LED_RED, HIGH);
-  //Gather signals and keep monitoring for new 
-  //signals for up to two seconds after the last signal was recv
-  while ( delayedTime > millis() ) {
-    
-    
-
-    if ( rcSwitch.available() ) {
-      digitalWrite(LED_GREEN, HIGH);
-      //Save the value to array and reset immediately
-      valueArray[i] = rcSwitch.getReceivedValue();  
-      Serial.println("Recv Signal");
-      Serial.println(valueArray[i]);
-      i++;
-
-      rcSwitch.resetAvailable();
-
-      //Reset the times so it will continue to loop for two 
-      //more seconds since the last signal was recv
-      timeSignalRecv = millis();
-      delayedTime = timeSignalRecv + delayAdd;
-
-      
-    }
-
-    digitalWrite(LED_GREEN, LOW);
-  }
-
-
-  printSignal2( valueArray );
-
-
-}
-
-
-void printSignal2(unsigned long valueArray[25]) {
-
-  for (int i = 0; i < 25; i++ ){
-    Serial.println(valueArray[i]);
-
-  }
-
+  Serial.println("----- End Presentation -----");
 }
 
 
 
 //Process incoming 433 MHz signals
 void processIncomingSignal() {
+  Serial.println("----- Signal Received -----");
+
   digitalWrite(LED_WHITE, HIGH);
   unsigned long value = rcSwitch.getReceivedValue();
 
@@ -224,30 +155,29 @@ void processIncomingSignal() {
   digitalWrite(LED_RED, LOW);
 }
 
+//
 void matchSignalUpdateController(unsigned long value) {
   //Compare the incoming value to known Switch Values
 
+  Serial.println("-- MySwitch Matching --");
   for (int i = 0; i < NUMBER_OF_SWITCHES; i++) {
-    Serial.println("----- MySwitch Matching ------");
-
     //If the value matches either on code or off code
     //Update the controller with the new state
-    if (switches[i].match(value)) {
+    if (mySwitches[i].match(value)) {
       Serial.println("Match! Updating controller with new state");
       //digitalWrite(LED_GREEN, HIGH);
-      updateController(i, switches[i].matchSignal(value));
+      updateController(i, mySwitches[i].matchSignal(value));
 
       break;
     }
 
-
+    Serial.println("NO MATCH");
   }
 
-  Serial.println("No Match");
-  digitalWrite(LED_RED, HIGH);
 
 }
 
+//
 void printSignal() {
   unsigned long value = rcSwitch.getReceivedValue();
 
@@ -267,7 +197,7 @@ void printSignal() {
 
 }
 
-
+//
 void updateController(int childSensorId, int newState) {
   digitalWrite(LED_GREEN, HIGH);
   MyMessage updateMsg(childSensorId, V_LIGHT);
@@ -277,59 +207,50 @@ void updateController(int childSensorId, int newState) {
 
 }
 
+//====================
 
 
 //Incoming Message from the Controller
 void incomingMessage(const MyMessage &message) {
 
-  //For Debugging messages from Controller
   //printMessage(message);
+  if (message.type==V_LIGHT) {
+    // Write some debug info
+    Serial.print("Incoming change for sensor:");
+    Serial.print(mySwitches[message.sensor].getName());
+    Serial.print(", New status: ");
+    Serial.println(message.getBool());
 
-  transmitToChildNode(message.sensor, message.getInt());
-  
+
+    // Transmit 433 Switch command to specified switch
+    transmitSwitchCommand(message.sensor, message.getBool());
+    
+   } 
 
 }
 
-void printMessage(MyMessage message) {
-  Serial.print("Message from controller recieved");
-  Serial.print("Sensor number: ");
-  Serial.print(message.sensor);
-  Serial.print(" // Receieve Value: ");
-  Serial.print(message.getInt());
 
-}
 
-/*Transmits a command (ON / OFF) to a predefined 433MHz Switch
-  Comand is recv from the Controller
-
-*/
-void transmitToChildNode(int childId, int state) {
-
+// Transmits a command (ON / OFF) to a predefined 433MHz Switch
+// Comand is recv from the Controller
+void transmitSwitchCommand(int childId, bool state) {
   digitalWrite(LED_RED, HIGH);
-  switch (state) {
-    case 0:
-      transmit(mySwitches[childId].off_code, 24);
-      break;
 
-    case 1:
-      transmit(mySwitches[childId].on_code, 24);
-      break;
+  mySwitches[childId].send(state);
 
-  }
   digitalWrite(LED_RED, LOW);
-
 }
 
-void transmit(unsigned long code, int bitlength) {
-  Serial.println("Beginning Transmission");
-  Serial.println(code);
-  Serial.println(" // Bit Length  ");
-  Serial.println(bitlength);
+// void transmit(unsigned long code, int bitlength) {
+//   Serial.println("Beginning Transmission");
+//   Serial.println(code);
+//   Serial.println(" // Bit Length  ");
+//   Serial.println(bitlength);
 
-  rcSwitch.send(code, bitlength);
+//   rcSwitch.send(code, bitlength);
   
-  Serial.println("Transmission Complete");
-}
+//   Serial.println("Transmission Complete");
+// }
 
 
 //OLD, superseceded by updateController
@@ -356,12 +277,6 @@ void transmit(unsigned long code, int bitlength) {
 // }
 
 
-
-
-void transmit(unsigned long code) {
-  rcSwitch.send(code, BITLENGTH);
-  Serial.println("Tx Complete");
-}
 
 
 

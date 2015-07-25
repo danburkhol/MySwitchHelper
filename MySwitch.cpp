@@ -3,7 +3,6 @@
 
 #include <RCSwitch.h>
 #include "MySwitch.h"
-#include <MySensor.h>
 
 
 MySwitch::MySwitch() {
@@ -57,8 +56,6 @@ void MySwitch::transmit24bit(RCSwitch *rcSwitch) {
 
 
 void MySwitch::send(bool state) {
-	
-
 	if (state) {
 		on();
 	}else {
@@ -66,6 +63,7 @@ void MySwitch::send(bool state) {
 	}
 	
 }
+
 
 void MySwitch::on() {
 	transmit24(on_code);
@@ -82,7 +80,7 @@ void MySwitch::transmit24(unsigned long code) {
 
 bool MySwitch::match(unsigned long value) {
 	//Given a signal, see if it matches any known codes of this switch
-	Serial.println("MATCHING SIGNAL");
+	//Serial.println("MATCHING SIGNAL");
 
 	if (on_code == value || off_code == value){
 		return true;
