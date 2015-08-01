@@ -64,6 +64,15 @@ void MySwitch::send(bool state) {
 	
 }
 
+void MySwitch::send(int state) {
+	if (state == 1) {
+		on();
+	}else {
+		off();
+	}
+	
+}
+
 
 void MySwitch::on() {
 	transmit24(on_code);

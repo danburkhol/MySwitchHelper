@@ -5,11 +5,16 @@
     Version 1.0
 */
 
-#include <MySensor.h>   //MySensors 
-#include <SPI.h>
 #include <RCSwitch.h>   //433 Transmitter
-#include "Switch433Types.h"
 #include "MySwitch.h"
+#include <EEPROM.h>
+    
+#include <MySigningNone.h>
+#include <MyTransportNRF24.h>
+#include <MyTransportRFM69.h>
+#include <MyHwATMega328.h>
+#include <MySensor.h>
+#include <SPI.h>
 
 #define CHILD_ID 0      //PatioLightFountain
 #define TX_PIN 8        //Transmitter PIN#8
@@ -23,7 +28,18 @@ int BITLENGTH = 24;
 
 
 RCSwitch rcSwitch = RCSwitch();
-MySensor gw; 
+
+
+// NRFRF24L01 radio driver (set low transmit power by default) 
+MyTransportNRF24 radio(RF24_CE_PIN, RF24_CS_PIN, RF24_PA_LEVEL_GW);  
+//MyTransportRFM69 radio;
+// Message signing driver (none default)
+//MySigningNone signer;
+// Select AtMega328 hardware profile
+MyHwATMega328 hw;
+// Construct MySensors library
+MySensor gw(radio, hw);
+
 
 #define SWITCH_1 0            //Child ID of the first switch
 #define NUMBER_OF_SWITCHES 2  //Total number of switches
@@ -42,6 +58,8 @@ MySwitch mySwitches[NUMBER_OF_SWITCHES] = {
 
 void setup()  {  
   Serial.begin(115200);
+  //clearEEPROM();
+
   //Setup LEDs
   pinMode(LED_WHITE, OUTPUT);
   pinMode(LED_RED, OUTPUT);
@@ -52,7 +70,7 @@ void setup()  {
 
   //Setup MySensor and assign func for incoming messages from the Controller
   gw.begin(incomingMessage, AUTO, true);
-  gw.sendSketchInfo("Switch433Custom", "1.0");
+  gw.sendSketchInfo("433Transceiver", "1.0");
   
   digitalWrite(LED_RED, HIGH);
   // Register binary input sensor to gw (they will be created as child devices)
@@ -66,53 +84,43 @@ void setup()  {
   rcSwitch.setRepeatTransmit(10);
   //Enable Receiver 
   rcSwitch.enableReceive(RX_PIN);    // Interrupt 1 => Pin #3
-  
 
-
-  Serial.println("----TESTING MySwitch class ------ ");
-  //Testing MySwitch.h and .cpp
-  for (int i = 0; i < NUMBER_OF_SWITCHES; i++) {
-    mySwitches[i].printSwitch();
-
-  }
-
-
-  Serial.println("----TESTING MySwitch class ------ ");
 
   digitalWrite(LED_WHITE, LOW);
   digitalWrite(LED_GREEN, LOW);
   digitalWrite(LED_RED, LOW);
 }
 
+void clearEEPROM() {
+  Serial.println("Clear EEPROM");
+    // write a 0 to all 512 bytes of the EEPROM
+  for (int i = 0; i < 512; i++)
+    EEPROM.write(i, 0x0);
+    
+  // turn the LED on when we're done
+  digitalWrite(13, HIGH);
+}
 
 //  Check if digital input has changed and send in new value
 void loop() {
+  // digitalWrite(LED_RED, HIGH);
+  // rcSwitch.enableReceive(RX_PIN);
+  
+
+  gw.process();
 
   //If a 433 MHz transmission is received
   if ( rcSwitch.available() ) {
+    Serial.println("RC Switch available");
     //Process this signal
     processIncomingSignal();
     
     //Reset switch and prepare for the next signal
     rcSwitch.resetAvailable();
 
-  }else {
-    //Serial.println("Else GW Process");
-    //Process any incoming messages from Controller. 
-    //Runs the incomingMessage(MyMessage) function
-    //gw.process();  
-
-    //Serial.println("ELSE Count");
-    //Serial.println(count);
-
-
-
   }
   
-  gw.process();
 
-  //sleep(uint8_t interrupt1, uint8_t mode1, uint8_t interrupt2, uint8_t mode2, unsigned long ms=0);
-  
 } 
 
 
@@ -212,28 +220,62 @@ void updateController(int childSensorId, int newState) {
 
 //Incoming Message from the Controller
 void incomingMessage(const MyMessage &message) {
+  Serial.println("----- MSG FROM CONTROLLER -----");
 
   //printMessage(message);
   if (message.type==V_LIGHT) {
+    digitalWrite(LED_GREEN, HIGH);
+
     // Write some debug info
-    Serial.print("Incoming change for sensor:");
+    
     Serial.print(mySwitches[message.sensor].getName());
     Serial.print(", New status: ");
     Serial.println(message.getBool());
 
 
     // Transmit 433 Switch command to specified switch
-    transmitSwitchCommand(message.sensor, message.getBool());
+    //transmitSwitchCommand(message.sensor, message.getInt());
     
+    transmitSwitchCmd(message.sensor, message.getBool());
+
    } 
 
+   digitalWrite(LED_GREEN, LOW);
 }
 
 
+void transmitSwitchCmd(int childId, int state) {
+  Serial.println("TransmistSwitchCmd");
+  digitalWrite(LED_RED, HIGH);
+
+
+  if (state == 1) {
+    //mySwitches[childId].on();
+    rcSwitch.send(mySwitches[childId].getOnCode(), 24);
+
+
+  }else {
+    //mySwitches[childId].off();
+
+    rcSwitch.send(mySwitches[childId].getOffCode(), 24);
+  }
+
+
+  digitalWrite(LED_RED, LOW);
+
+}
 
 // Transmits a command (ON / OFF) to a predefined 433MHz Switch
 // Comand is recv from the Controller
 void transmitSwitchCommand(int childId, bool state) {
+  digitalWrite(LED_RED, HIGH);
+
+  mySwitches[childId].send(state);
+
+  digitalWrite(LED_RED, LOW);
+}
+
+void transmitSwitchCommand(int childId, int state) {
   digitalWrite(LED_RED, HIGH);
 
   mySwitches[childId].send(state);

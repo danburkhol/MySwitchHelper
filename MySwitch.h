@@ -23,6 +23,7 @@ class MySwitch {
 		void off();
 		void transmit24(unsigned long code);
 		void send(bool state);
+		void send(int state);
 
 		void printSwitch();
 		bool match(unsigned long value);
