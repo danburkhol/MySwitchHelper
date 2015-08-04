@@ -8,7 +8,8 @@
 #include <RCSwitch.h>   //433 Transmitter
 #include "MySwitch.h"
 #include <EEPROM.h>
-    
+#include "MySwitchHelpers.h"
+
 #include <MySigningNone.h>
 #include <MyTransportNRF24.h>
 #include <MyTransportRFM69.h>
@@ -27,7 +28,14 @@ int LED_GREEN = 6;
 int BITLENGTH = 24;
 
 
-RCSwitch rcSwitch = RCSwitch();
+SWITCH my_switches[NUMBER_OF_SWITCHES] = {
+  //{name, on_code, off_code, bitlength}
+  {"Front Patio", 5363020, 5363008, 24}, {"Living Room Roto 2", 5592407, 5592404, 24}
+
+};
+
+// RCSwitch rcSwitch = RCSwitch();
+MySwitchHelper rcSwitch = MySwitchHelper(TX_PIN, RX_PIN, 10);
 
 
 // NRFRF24L01 radio driver (set low transmit power by default) 
@@ -49,10 +57,11 @@ MySensor gw(radio, hw);
 MySwitch mySwitches[NUMBER_OF_SWITCHES] = {
   //MySwitch("Name", On Code , Off Code, bit length (default 24), &rcSwitch)
   //e.g. MySwitch("Front Patio", 5363020, 5363008, 24, &rcSwitch) 
-  MySwitch("Front Patio", 5363020, 5363008, 24, &rcSwitch), 
-  MySwitch("Living Room Roto 2", 5592407, 5592404, 24, &rcSwitch)
+  MySwitch("Front Patio", 5363020, 5363008, 24, rcSwitch), 
+  MySwitch("Living Room Roto 2", 5592407, 5592404, 24, rcSwitch)
 
 };
+
 
 
 
@@ -65,64 +74,52 @@ void setup()  {
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
 
-  digitalWrite(LED_WHITE, HIGH);
 
-
+  ledWhiteOn();
   //Setup MySensor and assign func for incoming messages from the Controller
   gw.begin(incomingMessage, AUTO, true);
   gw.sendSketchInfo("433Transceiver", "1.0");
   
-  digitalWrite(LED_RED, HIGH);
-  // Register binary input sensor to gw (they will be created as child devices)
-  //gw.present(CHILD_ID, S_LIGHT);   // Present each Child Sensor to the Controller
+
+  ledRedOn();
+  // Register all switches with controller (they will be created as child devices)
   presentSwitches();
 
 
-  digitalWrite(LED_GREEN, HIGH);
-  //Enable Transmission 
-  rcSwitch.enableTransmit(TX_PIN);
-  rcSwitch.setRepeatTransmit(10);
-  //Enable Receiver 
-  rcSwitch.enableReceive(RX_PIN);    // Interrupt 1 => Pin #3
+  ledGreenOn();
+  // //Enable Transmission 
+  // rcSwitch.enableTransmit(TX_PIN);
+  // rcSwitch.setRepeatTransmit(10);
+  // //Enable Receiver 
+  // rcSwitch.enableReceive(RX_PIN);    // Interrupt 1 => Pin #3
 
 
-  digitalWrite(LED_WHITE, LOW);
-  digitalWrite(LED_GREEN, LOW);
-  digitalWrite(LED_RED, LOW);
+  Serial.println("----- Setup Complete -----");
+  ledOff();
 }
 
-void clearEEPROM() {
-  Serial.println("Clear EEPROM");
-    // write a 0 to all 512 bytes of the EEPROM
-  for (int i = 0; i < 512; i++)
-    EEPROM.write(i, 0x0);
-    
-  // turn the LED on when we're done
-  digitalWrite(13, HIGH);
-}
 
-//  Check if digital input has changed and send in new value
+
 void loop() {
-  // digitalWrite(LED_RED, HIGH);
-  // rcSwitch.enableReceive(RX_PIN);
-  
-
+  //Process any incoming message from Controller
   gw.process();
+
 
   //If a 433 MHz transmission is received
   if ( rcSwitch.available() ) {
-    Serial.println("RC Switch available");
     //Process this signal
-    processIncomingSignal();
+    //processIncomingSignal();
     
     //Reset switch and prepare for the next signal
-    rcSwitch.resetAvailable();
+    //rcSwitch.resetAvailable();
+
+
+    matchSwitchTest();
 
   }
   
-
+  ledOff();
 } 
-
 
 
 
@@ -131,9 +128,18 @@ void presentSwitches() {
   Serial.println("----- Begin Presentation -----");
   
   //Iterate through each known SWITCH, Present to Controller
+  // for (int i = 0; i < NUMBER_OF_SWITCHES; i++) {
+  //   Serial.println("Presenting: ");
+  //   Serial.println(mySwitches[i].getName());
+    
+  //   gw.present(i, S_LIGHT);
+  // }
+
+  SWITCH *a = rcSwitch.getSwitches();
+
   for (int i = 0; i < NUMBER_OF_SWITCHES; i++) {
     Serial.println("Presenting: ");
-    Serial.println(mySwitches[i].getName());
+    Serial.print( a[i].name );
     
     gw.present(i, S_LIGHT);
   }
@@ -144,48 +150,48 @@ void presentSwitches() {
 
 
 //Process incoming 433 MHz signals
+//DEPRECATED ********
 void processIncomingSignal() {
-  Serial.println("----- Signal Received -----");
+  Serial.println("----- 433 Signal Received -----");
 
-  digitalWrite(LED_WHITE, HIGH);
+  ledWhiteOn();
+
   unsigned long value = rcSwitch.getReceivedValue();
 
   //For Debugging or Sniffing
   printSignal();
 
-
   //Match signal to known codes and update Controller if necessary
   matchSignalUpdateController(value);
 
-
-  digitalWrite(LED_WHITE, LOW);
-  digitalWrite(LED_GREEN, LOW);
-  digitalWrite(LED_RED, LOW);
 }
 
-//
-void matchSignalUpdateController(unsigned long value) {
-  //Compare the incoming value to known Switch Values
+//Compare the incoming value to known Switch Values
+//If there is a match, update the Controller with new state
 
-  Serial.println("-- MySwitch Matching --");
+//DEPRECATED ********
+
+void matchSignalUpdateController(unsigned long value) {
+  
+  Serial.println("----- MySwitch Matching -----");
   for (int i = 0; i < NUMBER_OF_SWITCHES; i++) {
     //If the value matches either on code or off code
     //Update the controller with the new state
+
     if (mySwitches[i].match(value)) {
       Serial.println("Match! Updating controller with new state");
-      //digitalWrite(LED_GREEN, HIGH);
       updateController(i, mySwitches[i].matchSignal(value));
 
       break;
+    
     }
 
     Serial.println("NO MATCH");
   }
 
-
 }
 
-//
+//DEPRECATED ********
 void printSignal() {
   unsigned long value = rcSwitch.getReceivedValue();
 
@@ -205,6 +211,18 @@ void printSignal() {
 
 }
 
+
+//
+void matchSwitchTest() {
+  matched_switch m = rcSwitch.matchSwitch();
+  if (m.childId != 255) {
+
+    updateController(m.childId, m.newState);
+
+  }
+}
+
+
 //
 void updateController(int childSensorId, int newState) {
   digitalWrite(LED_GREEN, HIGH);
@@ -222,28 +240,30 @@ void updateController(int childSensorId, int newState) {
 void incomingMessage(const MyMessage &message) {
   Serial.println("----- MSG FROM CONTROLLER -----");
 
-  //printMessage(message);
   if (message.type==V_LIGHT) {
-    digitalWrite(LED_GREEN, HIGH);
+    ledGreenOn();
 
     // Write some debug info
-    
-    Serial.print(mySwitches[message.sensor].getName());
-    Serial.print(", New status: ");
-    Serial.println(message.getBool());
+
+    //SWITCH *a = rcSwitch.getSwitches();
+
+    // Serial.print( mySwitches[message.sensor].getName() );
+    // Serial.print( rcSwitch.getSwitches()[message.sensor].name );
+    // Serial.print(", New status: ");
+    // Serial.println(message.getBool());
 
 
     // Transmit 433 Switch command to specified switch
-    //transmitSwitchCommand(message.sensor, message.getInt());
+    // transmitSwitchCommand(message.sensor, message.getBool());
     
-    transmitSwitchCmd(message.sensor, message.getBool());
-
+    rcSwitch.transmitSwitchCmd(message.sensor, message.getBool());
    } 
 
-   digitalWrite(LED_GREEN, LOW);
+   ledGreenOff();
 }
 
 
+//**** DEPREC *****
 void transmitSwitchCmd(int childId, int state) {
   Serial.println("TransmistSwitchCmd");
   digitalWrite(LED_RED, HIGH);
@@ -267,6 +287,8 @@ void transmitSwitchCmd(int childId, int state) {
 
 // Transmits a command (ON / OFF) to a predefined 433MHz Switch
 // Comand is recv from the Controller
+
+//****** DEPREC *****
 void transmitSwitchCommand(int childId, bool state) {
   digitalWrite(LED_RED, HIGH);
 
@@ -283,42 +305,48 @@ void transmitSwitchCommand(int childId, int state) {
   digitalWrite(LED_RED, LOW);
 }
 
-// void transmit(unsigned long code, int bitlength) {
-//   Serial.println("Beginning Transmission");
-//   Serial.println(code);
-//   Serial.println(" // Bit Length  ");
-//   Serial.println(bitlength);
 
-//   rcSwitch.send(code, bitlength);
-  
-//   Serial.println("Transmission Complete");
-// }
+void clearEEPROM() {
+  Serial.println("Clear EEPROM");
+    // write a 0 to all 512 bytes of the EEPROM
+  for (int i = 0; i < 512; i++)
+    EEPROM.write(i, 0x0);
+    
+  // turn the LED on when we're done
+  digitalWrite(13, HIGH);
+}
 
+//LED funcs
 
-//OLD, superseceded by updateController
-//
-//Used to update the controller if there is an external state change of a 433 MHz switch
-// e.g. Someone uses the original remote to turn it off and not the Controller
-//getbool() runs getint() -- maybe switch to getInt() when procsseing to simplify
-//newState is boolean because received messages report the new state of V_LIGHT as bool
-// void updateStateToController(int childSensorId, int variableType, bool newState) {
-//   //Create a message for the child sensor
-//   MyMessage updateMsg(childSensorId, variableType);
+void ledGreenOn() {
+  digitalWrite(LED_GREEN, HIGH);
+}
 
-//   //Set the new state of this child
-//   if (newState) {
-//     updateMsg.set(ON);
+void ledGreenOff() {
+  digitalWrite(LED_GREEN, LOW);
+}
 
-//   }else {
-//     updateMsg.set(OFF);
+void ledWhiteOn() {
+  digitalWrite(LED_WHITE, HIGH);
+}
 
-//   }
-  
-//   //Send update to Controller
-//   gw.send(updateMsg);
-// }
+void ledWhiteOff() {
+  digitalWrite(LED_WHITE, LOW);
+}
 
+void ledRedOn() {
+  digitalWrite(LED_RED, HIGH);
+}
 
+void ledRedOff() {
+  digitalWrite(LED_RED, LOW);
+}
+
+void ledOff() {
+  digitalWrite(LED_WHITE, LOW);
+  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(LED_RED, LOW);
+}
 
 
 

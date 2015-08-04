@@ -1,4 +1,5 @@
 
+
 class MySwitch {
 	String name;
 	unsigned long on_code;
@@ -13,8 +14,8 @@ class MySwitch {
 		//Constructor
 		MySwitch();
 		MySwitch(String _name, unsigned long _on_code, unsigned long _off_code, int _bitlength);
-		MySwitch(String _name, unsigned long _on_code, unsigned long _off_code, int _bitlength, RCSwitch *_rcSwitch);
-		MySwitch(String *_name, unsigned long *_on_code, unsigned long *_off_code, int *_bitlength, RCSwitch *_rcSwitch);
+		MySwitch(String _name, unsigned long _on_code, unsigned long _off_code, int _bitlength, RCSwitch &_rcSwitch);
+	
 
 		//Functions
 		void transmit24bit(RCSwitch *rcSwitch);

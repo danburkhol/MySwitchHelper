@@ -5,6 +5,7 @@
 #include "MySwitch.h"
 
 
+
 MySwitch::MySwitch() {
 
 
@@ -16,21 +17,14 @@ MySwitch::MySwitch(String _name, unsigned long _on_code, unsigned long _off_code
 	bitlength = _bitlength;
 }
 
-MySwitch::MySwitch(String *_name, unsigned long *_on_code, unsigned long *_off_code, int *_bitlength, RCSwitch *_rcSwitch) {
-	name = (*_name);
-	on_code = (*_on_code);
-	off_code = (*_off_code);
-	bitlength = (*_bitlength);
-	rcSwitch = (*_rcSwitch);
-}
 
 
-MySwitch::MySwitch(String _name, unsigned long _on_code, unsigned long _off_code, int _bitlength, RCSwitch *_rcSwitch) {
+MySwitch::MySwitch(String _name, unsigned long _on_code, unsigned long _off_code, int _bitlength, RCSwitch &_rcSwitch) {
 	name = _name;
 	on_code = _on_code;
 	off_code = _off_code;
 	bitlength = _bitlength;
-	rcSwitch = (*_rcSwitch);
+	rcSwitch = _rcSwitch;
 }
 
 void MySwitch::printSwitch() {
