@@ -1,14 +1,15 @@
 /*  Arduino Sketch for a MySensors-compatible 433 MHz Transmitter
 
+	This sketch will present each switch as a light. The controller can operate the switches. 
+	The receiever is constantly listening for any 433 MHz signals. 
+	If a signal is receieved and matches a known switch code it will update the Controller with the new status.
 
     Daniel Burkholder 
     Version 1.0
 */
 
 #include <RCSwitch.h>   //433 Transmitter
-#include "MySwitch.h"
-#include <EEPROM.h>
-#include "MySwitchHelper.h"
+#include <MySwitchHelper.h>
 
 #include <MySigningNone.h>
 #include <MyTransportNRF24.h>
@@ -17,16 +18,23 @@
 #include <MySensor.h>
 #include <SPI.h>
 
-#define CHILD_ID 0      //PatioLightFountain
 #define TX_PIN 8        //Transmitter PIN#8
 #define RX_PIN 1        // Interrupt 0 => Pin #2
                         // Interrupt 1 => Pin #3
-int LED_WHITE = 4;
-int LED_RED = 5;
-int LED_GREEN = 6;
-int BITLENGTH = 24;
 
-#define NUMBER_OF_SWITCHES 2  //Total number of switches
+#define NUMBER_OF_SWITCHES 2  //Total number of Switches
+
+
+//----- Setup your switches here -----
+SWITCH my_switches[NUMBER_OF_SWITCHES] = {
+  //{name, on_code, off_code, bitlength}
+  {"Living room", 5363020, 5363008, 24}, {"Front Porch", 5592407, 5592404, 24}
+
+};
+
+//MySwitchHelper(Transmitter Pin, Receiever Interrupt, Number of sent transmissions at a time)
+MySwitchHelper rcSwitch = MySwitchHelper(TX_PIN, RX_PIN, 10);
+
 
 
 //----- MySensors -----
@@ -42,49 +50,30 @@ MySensor gw(radio, hw);
 //----- MySensors -----
 
 
-SWITCH my_switches[NUMBER_OF_SWITCHES] = {
-  //{name, on_code, off_code, bitlength}
-  {"Front Patio", 5363020, 5363008, 24}, {"Living Room Roto 2", 5592407, 5592404, 24}
-
-};
-
-// RCSwitch rcSwitch = RCSwitch();
-MySwitchHelper rcSwitch = MySwitchHelper(TX_PIN, RX_PIN, 10);
-
-
 
 void setup()  {  
   Serial.begin(115200);
 
-  //Setup LEDs
-  pinMode(LED_WHITE, OUTPUT);
-  pinMode(LED_RED, OUTPUT);
-  pinMode(LED_GREEN, OUTPUT);
-
-
-  ledWhiteOn();
   //Setup MySensor and assign func for incoming messages from the Controller
   gw.begin(incomingMessage, AUTO, true);
   gw.sendSketchInfo("433Transceiver", "1.0");
   
 
   // Register all switches with controller (they will be created as child devices)
-  ledRedOn();
   rcSwitch.setSwitches(my_switches);
   presentSwitches();
 
 
-  ledOff();
   Serial.println("----- Setup Complete -----");
 
 }
 
 
 
+
 void loop() {
   //Process any incoming message from Controller
   gw.process();
-
 
   //If a 433 MHz transmission is received
   if ( rcSwitch.available() ) {
@@ -93,7 +82,6 @@ void loop() {
   }
   
 
-  ledOff();
 } 
 
 
@@ -122,7 +110,6 @@ void presentSwitches() {
 void matchSwitch() {
   matched_switch m = rcSwitch.matchSwitch();
 
-  //m.childId = 255 = no match to known switches
   if (m.childId != 255) {
     //Match found
     updateController(m.childId, m.newState, V_LIGHT);
@@ -152,7 +139,6 @@ void incomingMessage(const MyMessage &message) {
   Serial.println("----- MSG FROM CONTROLLER -----");
 
   if (message.type==V_LIGHT) {
-    ledGreenOn();
 
     // Transmit 433 Switch command to specified switch
     rcSwitch.transmitSwitchCmd(message.sensor, message.getBool());
@@ -160,42 +146,3 @@ void incomingMessage(const MyMessage &message) {
   } 
 
 }
-
-
-
-
-//===== LED funcs
-
-void ledGreenOn() {
-  digitalWrite(LED_GREEN, HIGH);
-}
-
-void ledGreenOff() {
-  digitalWrite(LED_GREEN, LOW);
-}
-
-void ledWhiteOn() {
-  digitalWrite(LED_WHITE, HIGH);
-}
-
-void ledWhiteOff() {
-  digitalWrite(LED_WHITE, LOW);
-}
-
-void ledRedOn() {
-  digitalWrite(LED_RED, HIGH);
-}
-
-void ledRedOff() {
-  digitalWrite(LED_RED, LOW);
-}
-
-void ledOff() {
-  digitalWrite(LED_WHITE, LOW);
-  digitalWrite(LED_GREEN, LOW);
-  digitalWrite(LED_RED, LOW);
-}
-
-
-
-
